@@ -1,0 +1,58 @@
+{
+  "name": "phonecam-bridge",
+  "version": "0.1.0",
+  "description": "QR-paired phone camera bridge over Wi-Fi, with OBS-friendly browser output for Teams and Zoom.",
+  "type": "module",
+  "bin": {
+    "phonecam": "./bin/phonecam.js"
+  },
+  "files": [
+    "assets/",
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node ./bin/phonecam.js start",
+    "dev": "node ./bin/phonecam.js start",
+    "obs": "node ./bin/phonecam.js obs check",
+    "obs:check": "node ./bin/phonecam.js obs check",
+    "obs:install": "node ./bin/phonecam.js obs install",
+    "obs:ensure": "node ./bin/phonecam.js obs ensure",
+    "check": "node --check ./bin/phonecam.js && node --check ./src/server.js && node --check ./src/pages.js && node --check ./src/obs.js && node --check ./src/postinstall.js",
+    "postinstall": "node ./src/postinstall.js",
+    "prepack": "npm run check",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "keywords": [
+    "phone-camera",
+    "webcam",
+    "webrtc",
+    "obs",
+    "zoom",
+    "teams",
+    "qr-code",
+    "camera"
+  ],
+  "homepage": "https://github.com/yesabhishek/phonecam-bridge#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yesabhishek/phonecam-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yesabhishek/phonecam-bridge/issues"
+  },
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "selfsigned": "^2.4.1",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}

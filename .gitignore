@@ -1,0 +1,4 @@
+.phonecam/
+node_modules/
+*.tgz
+phonecam-preview.png
