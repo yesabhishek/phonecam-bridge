@@ -29,9 +29,8 @@ jobs:
   linux-camera:
     name: Linux camera end-to-end
     runs-on: ubuntu-latest
-    env:
-      PHONECAM_HOME: ${{ runner.temp }}/phonecam
     steps:
+      - run: echo "PHONECAM_HOME=$RUNNER_TEMP/phonecam" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
