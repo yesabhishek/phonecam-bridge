@@ -1,129 +1,215 @@
 #!/usr/bin/env node
 
-import { startPhoneCamServer } from "../src/server.js";
-import { ensureObs, installObs, printObsCheck } from "../src/obs.js";
+import fs from "node:fs";
+import https from "node:https";
+import qrcode from "qrcode-terminal";
+import { ensureCertificates } from "../src/cert.js";
+import { pickLanAddress } from "../src/network.js";
+import { startServer } from "../src/server.js";
+import { setup, uninstall, unsupportedPlatformMessage } from "../src/setup.js";
+import { createSink } from "../src/sinks.js";
+import { loadConfig, rotateSecret, saveConfig, statePath } from "../src/state.js";
 
-function parseArgs(argv) {
-  const args = {
-    command: argv[2] || "help",
-    subcommand: argv[3],
-    host: "0.0.0.0",
-    port: 8443,
-    obsPort: undefined,
-    obsHttp: true,
-    cert: undefined,
-    key: undefined,
-    open: true,
-    qr: true
-  };
+const VERSION = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
-  if (args.command === "-h" || args.command === "--help") {
-    args.command = "help";
-  }
+const HELP = `phonecam ${VERSION} — use your phone as a wireless 1080p webcam
 
-  const startIndex = args.command === "obs" ? 4 : 3;
+Usage:
+  phonecam setup              One-time install of the PhoneCam camera (asks for admin once)
+  phonecam pair [--reset]     Show the QR code to scan with your phone
+                              --reset forgets previously paired phones
+  phonecam start [options]    Run in the foreground (setup already runs it at login)
+  phonecam status             Show whether PhoneCam is running and a phone is streaming
+  phonecam uninstall          Remove the camera, background service, and pairing data
 
-  for (let index = startIndex; index < argv.length; index += 1) {
-    const arg = argv[index];
-    const next = argv[index + 1];
+Start options:
+  --port <n>          HTTPS port (default 8443, remembered)
+  --record <file>     Save the phone's H.264 stream to a file instead of the camera
+  --no-qr             Don't print the QR code
 
-    if (arg === "--host" && next) {
-      args.host = next;
-      index += 1;
-    } else if (arg === "--port" && next) {
-      args.port = Number.parseInt(next, 10);
-      index += 1;
-    } else if (arg === "--obs-port" && next) {
-      args.obsPort = Number.parseInt(next, 10);
-      index += 1;
-    } else if (arg === "--cert" && next) {
-      args.cert = next;
-      index += 1;
-    } else if (arg === "--key" && next) {
-      args.key = next;
-      index += 1;
-    } else if (arg === "--no-open") {
-      args.open = false;
+On your phone: scan the QR code, allow camera access, and keep the page open.
+Then pick "PhoneCam" as the camera in Teams, Meet, or Zoom.`;
+
+export function parseArgs(argv) {
+  const [command = "help", ...rest] = argv;
+  const options = { command, qr: true, reset: false };
+
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--port") {
+      options.port = Number.parseInt(rest[++index], 10);
+      if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535) {
+        throw new Error("--port needs a number between 1 and 65535.");
+      }
+    } else if (arg === "--record") {
+      options.record = rest[++index];
+      if (!options.record) {
+        throw new Error("--record needs a file path.");
+      }
     } else if (arg === "--no-qr") {
-      args.qr = false;
-    } else if (arg === "--no-obs-http") {
-      args.obsHttp = false;
+      options.qr = false;
+    } else if (arg === "--reset") {
+      options.reset = true;
     } else if (arg === "-h" || arg === "--help") {
-      args.command = "help";
+      options.command = "help";
     } else {
-      throw new Error(`Unknown argument: ${arg}`);
+      throw new Error(`Unknown option: ${arg}`);
     }
   }
 
-  return args;
+  if (options.command === "-h" || options.command === "--help") {
+    options.command = "help";
+  }
+  if (options.command === "-v" || options.command === "--version") {
+    options.command = "version";
+  }
+  return options;
 }
 
-function printHelp() {
-  console.log(`phonecam
+async function printPairing({ reset = false } = {}) {
+  const config = reset ? rotateSecret() : loadConfig();
+  const address = await pickLanAddress();
+  ensureCertificates(address);
+  const url = `https://${address}:${config.port}/#k=${config.secret}`;
 
-Usage:
-  phonecam start [--host 0.0.0.0] [--port 8443] [--obs-port 8444] [--cert ./cert.pem] [--key ./key.pem] [--no-open] [--no-qr] [--no-obs-http]
-  phonecam obs check
-  phonecam obs install
-  phonecam obs ensure
+  console.log("\nScan with your phone's camera (iPhone Safari or Android Chrome):\n");
+  qrcode.generate(url, { small: true });
+  console.log(`\n${url}\n`);
+  console.log("First time only: your phone warns that the connection isn't private — tap");
+  console.log("“Show Details → visit this website” (iPhone) or “Advanced → Proceed” (Android).");
+  console.log("Then add the page to your Home Screen to reconnect with one tap.\n");
+  if (reset) {
+    console.log("Previously paired phones were forgotten.\n");
+  }
+}
 
-What it does:
-  Starts a local HTTPS server, prints a QR code for your phone, and opens a
-  laptop preview page. The phone streams camera video to preview and OBS pages
-  over Wi-Fi. OBS gets a localhost-only HTTP URL by default because OBS Browser
-  Source often cannot accept self-signed HTTPS certificates.
+async function start(options) {
+  const config = loadConfig();
+  if (options.port && options.port !== config.port) {
+    config.port = options.port;
+    saveConfig(config);
+  }
 
-Important:
-  This CLI does not create a Windows webcam device. Teams/Zoom can only select
-  this stream as a Camera if IT allows an OS-level virtual camera such as OBS
-  Virtual Camera.
+  let sink = createSink({ record: options.record });
+  if (!sink) {
+    console.log(`${unsupportedPlatformMessage()}\nThe phone's stream will be received but not shown as a camera.\n`);
+    sink = { describe: () => "no camera driver", write() {} };
+  }
 
-OBS commands:
-  check    Detect OS, OBS install status, and supported installer.
-  install  Try to install OBS Studio with the OS package manager.
-  ensure   Check first, then install OBS Studio only when missing.
-`);
+  const interactive = process.stdout.isTTY;
+  let statusLineShown = false;
+  const log = (message) => {
+    if (statusLineShown) {
+      process.stdout.write("\n");
+      statusLineShown = false;
+    }
+    console.log(message);
+  };
+
+  const server = await startServer({
+    port: config.port,
+    sink,
+    log,
+    onStats: interactive
+      ? ({ fps, mbps, width, height }) => {
+          process.stdout.write(`\r● Streaming ${width}×${height} · ${fps.toFixed(0)} fps · ${mbps.toFixed(1)} Mbps   `);
+          statusLineShown = true;
+        }
+      : undefined
+  });
+
+  log(`PhoneCam is running on https://${server.address}:${config.port} → ${sink.describe()}`);
+  if (options.qr) {
+    await printPairing();
+  }
+  log("Waiting for your phone… (Ctrl+C to stop)");
+
+  const shutdown = () => {
+    server.close();
+    sink.close?.();
+    process.exit(0);
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+}
+
+async function status() {
+  const config = loadConfig();
+  let ca;
+  try {
+    ca = fs.readFileSync(statePath("ca-cert.pem"));
+  } catch {
+    console.log("PhoneCam has not been started on this computer yet.");
+    return false;
+  }
+
+  const health = await new Promise((resolve) => {
+    const request = https.get({ host: "127.0.0.1", port: config.port, path: "/healthz", ca, timeout: 2000 }, (response) => {
+      let body = "";
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch {
+          resolve(undefined);
+        }
+      });
+    });
+    request.on("timeout", () => request.destroy());
+    request.on("error", () => resolve(undefined));
+  });
+
+  if (!health?.ok) {
+    console.log(`PhoneCam is not running (port ${config.port}). Start it with “phonecam start”.`);
+    return false;
+  }
+  console.log(`PhoneCam is running on port ${config.port}.`);
+  console.log(health.phone
+    ? `Phone: ${health.device} streaming ${health.width}×${health.height}`
+    : "Phone: not connected (run “phonecam pair” to show the QR code)");
+  return true;
 }
 
 async function main() {
-  const args = parseArgs(process.argv);
+  const options = parseArgs(process.argv.slice(2));
 
-  if (args.command === "help") {
-    printHelp();
-    return;
-  }
-
-  if (args.command === "obs") {
-    if (args.subcommand === "check") {
-      const ok = await printObsCheck();
-      process.exitCode = ok ? 0 : 1;
+  switch (options.command) {
+    case "help":
+      console.log(HELP);
       return;
-    }
-
-    if (args.subcommand === "install") {
-      const ok = await installObs();
-      process.exitCode = ok ? 0 : 1;
+    case "version":
+      console.log(VERSION);
       return;
-    }
-
-    if (args.subcommand === "ensure") {
-      const ok = await ensureObs();
-      process.exitCode = ok ? 0 : 1;
+    case "setup":
+      if (!setup()) {
+        process.exitCode = 1;
+        return;
+      }
+      console.log("\nPhoneCam is installed and will start automatically at login.");
+      await printPairing();
       return;
-    }
-
-    throw new Error("Unknown OBS command. Use: phonecam obs check|install|ensure");
+    case "pair":
+      await printPairing({ reset: options.reset });
+      return;
+    case "start":
+      await start(options);
+      return;
+    case "status":
+      process.exitCode = (await status()) ? 0 : 1;
+      return;
+    case "uninstall":
+      uninstall();
+      return;
+    default:
+      throw new Error(`Unknown command: ${options.command}. Run “phonecam help”.`);
   }
-
-  if (args.command === "start") {
-    await startPhoneCamServer(args);
-    return;
-  }
-
-  throw new Error(`Unknown command: ${args.command}`);
 }
 
-main().catch((error) => {
-  console.error(`\nphonecam: ${error.message}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(new URL(import.meta.url))) {
+  main().catch((error) => {
+    console.error(`phonecam: ${error.message}`);
+    process.exitCode = 1;
+  });
+}

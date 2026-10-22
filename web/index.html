@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PhoneCam">
+  <meta name="theme-color" content="#000000">
+  <title>PhoneCam</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #000; color: #eee; overflow: hidden; }
+    video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+    .bar {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px;
+      padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+    }
+    .status {
+      position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+      max-width: calc(100% - 32px); padding: 7px 12px; border-radius: 999px;
+      background: rgba(0, 0, 0, 0.6); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .status::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #f5a524; }
+    .status.live::before { background: #00d084; }
+    .status.bad::before { background: #ff4d4f; }
+    button {
+      min-height: 44px; padding: 0 18px; border: 1px solid #333; border-radius: 22px;
+      background: #161616; color: #eee; font: inherit; font-size: 15px; font-weight: 600;
+    }
+    button.primary { background: #fff; border-color: #fff; color: #000; }
+    button[hidden] { display: none; }
+    .hint { width: 100%; margin: 0; text-align: center; color: #aaa; font-size: 13px; }
+    .hint a { color: #ddd; }
+    #dim { position: fixed; inset: 0; background: #000; display: grid; place-items: center; color: #333; font-size: 14px; }
+    #dim[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <video id="preview" autoplay muted playsinline></video>
+  <div id="status" class="status">Starting…</div>
+  <div class="bar">
+    <button id="start" class="primary" type="button" hidden>Start camera</button>
+    <button id="flip" type="button" hidden>Flip camera</button>
+    <button id="dimButton" type="button" hidden>Dim screen</button>
+    <p id="hint" class="hint"></p>
+  </div>
+  <div id="dim" hidden>Streaming · tap to wake</div>
+  <script src="/app.js"></script>
+</body>
+</html>

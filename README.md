@@ -1,159 +1,118 @@
-# phonecam-bridge
+# PhoneCam
 
-![phonecam-bridge logo](assets/logo.svg)
+<img src="web/icon.svg" width="72" align="right" alt="">
 
-Use an Android or iPhone camera over Wi-Fi from a laptop browser, then bridge it into Teams or Zoom with OBS Virtual Camera.
+Use your phone as a **wireless 1080p webcam** for Teams, Google Meet, Zoom, or any other video app.
 
-`phonecam-bridge` starts a local HTTPS server, prints a QR code for the phone, serves a clean laptop preview, and exposes an OBS-friendly browser scene.
+- **No app on the phone.** Scan a QR code once; the camera runs in Safari or Chrome.
+- **No OBS or other third-party app.** PhoneCam installs a real camera device called **PhoneCam**.
+- **No window on the computer.** It runs in the background; you pick "PhoneCam" in your call app.
+
+```
+Phone browser ──── Wi-Fi (H.264, 1080p30) ────▶ phonecam ──▶ "PhoneCam" camera ──▶ Teams / Meet / Zoom
+```
+
+## Platform support
+
+| Computer | Status |
+|---|---|
+| **Linux** | ✅ Supported (v4l2loopback camera device) |
+| macOS | 🚧 Planned: CoreMediaIO Camera Extension |
+| Windows | 🚧 Planned: Media Foundation virtual camera (Windows 11) |
+
+On macOS and Windows you can already run `phonecam start --record test.h264` to try the phone connection.
+
+| Phone | Requirement |
+|---|---|
+| iPhone / iPad | Safari, iOS 16.4 or newer |
+| Android | Chrome 94 or newer |
 
 ## Install
 
+You need Node.js 20+ and git. Then:
+
 ```bash
-npm install -g phonecam-bridge
+curl -fsSL https://raw.githubusercontent.com/yesabhishek/phonecam-bridge/main/install.sh | sh
 ```
 
-During install, `phonecam-bridge` detects Windows, macOS, or Linux and checks whether OBS Studio is already installed. The check is advisory and does not install OBS automatically. To skip it:
+On Linux this runs the one-time `phonecam setup`, which asks for your password once to:
 
-```bash
-PHONECAM_BRIDGE_SKIP_OBS_CHECK=1 npm install -g phonecam-bridge
+1. install the `v4l2loopback` kernel module and the video decoder libraries,
+2. create the **PhoneCam** camera (`/dev/video42`),
+3. build the small decoder helper, and
+4. start PhoneCam in the background at every login (a systemd user service).
+
+At the end it prints a QR code.
+
+## Connect your phone
+
+1. Scan the QR code with your phone's camera (or run `phonecam pair` to see it again).
+2. The first time, the phone warns that the connection isn't private, because the
+   certificate is made by your own computer. Tap **Show Details → visit this website**
+   (iPhone) or **Advanced → Proceed** (Android).
+3. Allow camera access. The page shows `Live · 1920×1080 · 30 fps`.
+4. **Add the page to your Home Screen.** Next time, just tap the icon.
+
+Then choose **PhoneCam** as the camera in your video app.
+
+Tips:
+
+- Hold the phone **sideways** for a full 16:9 picture. Portrait video is shown with side bars.
+- Keep the page open and the phone unlocked. PhoneCam keeps the screen awake; tap **Dim screen** to black it out while streaming.
+- To skip the certificate warning for good, tap **Trust this computer** on the phone page and install the profile.
+  On iPhone, also enable it under Settings → General → About → Certificate Trust Settings.
+
+## Commands
+
+```
+phonecam setup              One-time install of the PhoneCam camera
+phonecam pair [--reset]     Show the QR code; --reset un-pairs all phones
+phonecam start [options]    Run in the foreground (setup already runs it at login)
+    --port <n>              HTTPS port (default 8443, remembered)
+    --record <file>         Save the phone's H.264 stream instead of feeding the camera
+    --no-qr                 Don't print the QR code
+phonecam status             Is PhoneCam running, and is a phone streaming?
+phonecam uninstall          Remove the camera, service, and pairing data
 ```
 
-Local development:
+## How it works
+
+- **Phone:** the page captures the camera at 1920×1080 and 30 fps and encodes H.264 with the phone's hardware encoder through WebCodecs. It streams over a WebSocket on your local network.
+- **Low latency on busy Wi-Fi:** frames are never queued. If the network falls behind, the phone drops frames, lowers the bitrate (2–12 Mbps, starting at 8), and sends a fresh key frame. It doesn't let delay build up.
+- **Computer:** `phonecam` checks the pairing key and passes the video to a small C helper. The helper decodes it with libavcodec and writes a steady 1080p30 stream into the v4l2loopback device. When the phone is away, the camera shows a placeholder instead of disappearing from your call.
+- **Reconnects:** the phone reconnects on its own after Wi-Fi drops or a laptop restart. Pairing is remembered, so you scan only once.
+
+## Security
+
+- Everything stays on your local network. There is no cloud service or account.
+- The phone page is served over HTTPS with a certificate from a CA that PhoneCam creates on your computer. That CA's private key never leaves your computer.
+- A phone can stream only if it has the pairing key from the QR code. `phonecam pair --reset` revokes every phone that was paired before.
+- Only one phone streams at a time. A newly paired phone replaces the old one.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Phone can't open the link | Phone and computer must be on the same Wi-Fi. Guest and corporate networks often block device-to-device traffic, so try a home network or your phone's hotspot. Check that your firewall allows TCP port 8443. |
+| Wrong address in the QR code | Disconnect VPNs and run `phonecam pair` again. |
+| `/dev/video42 did not appear` | With Secure Boot on, the v4l2loopback module must be signed. Follow your distribution's DKMS/MOK instructions, or turn off Secure Boot. |
+| PhoneCam missing in a browser call | Restart the browser after setup. |
+| "Another phone took over the camera" | A second paired phone connected. Close the page on that phone. |
+| Is it running? | `phonecam status`, or `journalctl --user -u phonecam` for logs. |
+
+## Development
 
 ```bash
+git clone https://github.com/yesabhishek/phonecam-bridge && cd phonecam-bridge
 npm install
-npm start
+npm test                                   # unit and server tests
+npm run build:helper                       # Linux: build the decoder helper
+node bin/phonecam.js start --record out.h264
 ```
 
-## Usage
+Add `&test=1` to the phone URL (after the key) to stream a generated test pattern instead of the camera.
+CI runs the unit tests on Linux and macOS. It also runs a Linux end-to-end test that streams to a real v4l2loopback device and reads the frames back (`test/e2e/linux-camera.mjs`).
 
-Local checkout:
+## License
 
-```bash
-npm start
-npm run obs:check
-npm run obs:ensure
-```
-
-Global install:
-
-```bash
-phonecam start
-phonecam obs check
-phonecam obs ensure
-```
-
-Options:
-
-- `--host 0.0.0.0`: HTTPS bind host.
-- `--port 8443`: HTTPS server port.
-- `--obs-port 8444`: localhost-only HTTP port for OBS Browser Source.
-- `--cert <path>` and `--key <path>`: use a trusted certificate instead of the generated self-signed certificate.
-- `--no-open`: do not open the laptop preview automatically.
-- `--no-qr`: print URLs without rendering a QR code.
-- `--no-obs-http`: do not start the localhost-only HTTP OBS helper.
-
-The terminal prints:
-
-- `Phone URL`: scan this QR/link from Android Chrome or iPhone Safari.
-- `Preview URL`: open this on the laptop for the normal preview.
-- `OBS URL`: add this to OBS as a Browser Source.
-- `OBS HTTPS`: HTTPS fallback for OBS when OBS trusts your certificate.
-
-Press `Ctrl+C` to stop the server.
-
-## HTTPS
-
-All pages run over HTTPS because mobile browsers require a secure context for camera access over LAN.
-
-By default, the CLI creates a self-signed certificate in the user config directory:
-
-- Windows: `%LOCALAPPDATA%\\phonecam-bridge`
-- macOS: `~/Library/Application Support/phonecam-bridge`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/phonecam-bridge`
-
-Browsers and OBS may warn about the generated certificate. For a cleaner setup, provide your own trusted certificate:
-
-```bash
-phonecam start --cert ./localhost.pem --key ./localhost-key.pem
-```
-
-OBS Browser Source commonly cannot accept a generated self-signed HTTPS certificate interactively. For that reason, `phonecam start` also prints a localhost-only HTTP `OBS URL` by default. Use that URL in OBS. It is bound to `127.0.0.1` and cannot be opened from the phone or other devices.
-
-## OBS, Teams, and Zoom
-
-Teams and Zoom cannot select a web page directly as a camera. Use OBS as the bridge:
-
-Check whether OBS Studio is installed:
-
-```bash
-npm run obs:check
-```
-
-Try to install OBS Studio with the OS package manager:
-
-```bash
-npm run obs:install
-```
-
-Check first, then install only if missing:
-
-```bash
-npm run obs:ensure
-```
-
-After installing the package globally with `npm install -g phonecam-bridge`, the same commands are available as:
-
-```bash
-phonecam obs check
-phonecam obs install
-phonecam obs ensure
-```
-
-Installer behavior:
-
-- Windows: uses `winget` when available, then Chocolatey.
-- macOS: uses Homebrew Cask when available.
-- Linux: uses Flatpak when available, then Snap, then APT.
-
-Some installers may require admin rights or corporate approval.
-
-After OBS is installed:
-
-1. Run `phonecam start`.
-2. Add a new OBS source: `Browser`.
-3. Paste the `OBS URL` printed by the CLI. Prefer the `http://127.0.0.1:.../obs` URL unless you provided a trusted certificate.
-4. Set the browser source size to `1920 x 1080`.
-5. Start `OBS Virtual Camera`.
-6. In Teams or Zoom, select `OBS Virtual Camera`.
-
-The phone camera continues to stream through the QR-paired browser page; OBS only receives the clean scene page.
-
-## Phone Workflow
-
-1. Run `phonecam start` on the laptop.
-2. Scan the QR code from Android Chrome or iPhone Safari.
-3. Accept the local HTTPS warning if your browser shows one.
-4. Allow camera access.
-5. Tap `Start camera`.
-6. Use `Mirror off/on` or `Rotate 0/90/180/270` if you need to adjust the camera orientation.
-7. Keep the phone page open and the screen awake.
-
-## Checks
-
-```bash
-npm run check
-npm run pack:dry-run
-```
-
-Health endpoint:
-
-```bash
-curl -k https://localhost:8443/healthz
-```
-
-## Limitations
-
-- OBS install support depends on an available OS package manager and may require admin rights.
-- Corporate Wi-Fi can block device-to-device traffic. Use another trusted network or hotspot if the phone cannot reach the laptop URL.
-- Bluetooth is not used because it is not practical for real-time webcam-quality video into Teams or Zoom.
+MIT
