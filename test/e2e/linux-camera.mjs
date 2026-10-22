@@ -79,7 +79,7 @@ try {
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const result = spawnSync(command, args, { stdio: "inherit", timeout: 60000 });
   assert.equal(result.status, 0, `${command} failed`);
 }
 

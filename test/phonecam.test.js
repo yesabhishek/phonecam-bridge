@@ -110,6 +110,7 @@ describe("server", () => {
     assert.equal(page.status, 200);
     assert.match(page.body, /<title>PhoneCam<\/title>/);
     assert.equal((await get(server.port, "/app.js")).status, 200);
+    assert.equal((await get(server.port, "/apple-touch-icon.png")).status, 200);
     assert.equal((await get(server.port, "/ca.crt")).status, 200);
     assert.equal((await get(server.port, "/missing")).status, 404);
     assert.deepEqual(JSON.parse((await get(server.port, "/healthz")).body).ok, true);

@@ -12,6 +12,7 @@ jobs:
   test:
     name: Unit tests (${{ matrix.os }}, Node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +30,9 @@ jobs:
   linux-camera:
     name: Linux camera end-to-end
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEBIAN_FRONTEND: noninteractive
     steps:
       - run: echo "PHONECAM_HOME=$RUNNER_TEMP/phonecam" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
@@ -37,9 +41,10 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install v4l2loopback, decoder libraries, ffmpeg
+        timeout-minutes: 12
         run: |
           sudo apt-get update
-          sudo apt-get install -y v4l2loopback-dkms "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" v4l-utils \
+          sudo -E apt-get install -y --no-install-recommends v4l2loopback-dkms "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" v4l-utils \
             libavcodec-dev libswscale-dev libavutil-dev pkg-config ffmpeg
       - name: Create the PhoneCam device (same options as "phonecam setup")
         run: |
@@ -53,4 +58,5 @@ jobs:
       - name: Helper decode test
         run: PHONECAM_HELPER="$PHONECAM_HOME/bin/phonecam-v4l2" npm test
       - name: Phone to camera end-to-end
+        timeout-minutes: 3
         run: node test/e2e/linux-camera.mjs

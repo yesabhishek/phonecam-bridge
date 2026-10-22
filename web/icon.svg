@@ -1,17 +1,9 @@
-<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">PhoneCam logo</title>
-  <desc id="desc">A camera lens framed by QR code corners.</desc>
-  <rect width="192" height="192" rx="42" fill="#000000"/>
-  <path d="M48 66C48 56.0589 56.0589 48 66 48H126C135.941 48 144 56.0589 144 66V126C144 135.941 135.941 144 126 144H66C56.0589 144 48 135.941 48 126V66Z" fill="#FFFFFF"/>
-  <path d="M62 77C62 70.3726 67.3726 65 74 65H118C124.627 65 130 70.3726 130 77V119C130 125.627 124.627 131 118 131H74C67.3726 131 62 125.627 62 119V77Z" fill="#000000"/>
-  <path d="M79 64L85 54H107L113 64H79Z" fill="#000000"/>
-  <circle cx="96" cy="98" r="24" fill="#FFFFFF"/>
-  <circle cx="96" cy="98" r="13" fill="#000000"/>
-  <path d="M28 52V28H52" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M140 28H164V52" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M164 140V164H140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M52 164H28V140" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="132" y="132" width="12" height="12" fill="#FFFFFF"/>
-  <rect x="148" y="116" width="12" height="12" fill="#FFFFFF"/>
-  <rect x="116" y="148" width="12" height="12" fill="#FFFFFF"/>
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">PhoneCam</title>
+  <rect width="192" height="192" rx="44" fill="#FF5A36"/>
+  <path d="M63.88 72.12A56 56 0 0 1 128.12 72.12" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+  <path d="M51.26 54.1A78 78 0 0 1 140.74 54.1" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="96" cy="118" r="38" fill="#FFFFFF"/>
+  <circle cx="96" cy="118" r="25" fill="#FF5A36"/>
+  <circle cx="96" cy="118" r="12" fill="#FFFFFF"/>
 </svg>

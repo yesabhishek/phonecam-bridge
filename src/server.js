@@ -11,7 +11,8 @@ const webRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "w
 const STATIC_FILES = {
   "/": ["index.html", "text/html; charset=utf-8"],
   "/app.js": ["app.js", "text/javascript; charset=utf-8"],
-  "/icon.svg": ["icon.svg", "image/svg+xml"]
+  "/icon.svg": ["icon.svg", "image/svg+xml"],
+  "/apple-touch-icon.png": ["apple-touch-icon.png", "image/png"]
 };
 const HELLO_TIMEOUT_MS = 5000;
 const HEADER_BYTES = 9;
