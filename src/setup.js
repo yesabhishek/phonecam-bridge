@@ -57,6 +57,8 @@ export function setup() {
   if (manager) {
     if (manager === "apt-get") {
       sudo(["apt-get", "update"]);
+      // Ubuntu keeps the V4L2 core (videodev) here on some kernels; Debian has no such package.
+      sudo(["apt-get", "install", "-y", `linux-modules-extra-${os.release()}`], { optional: true });
     }
     sudo([manager, ...INSTALL_ARGS[manager], ...PACKAGES[manager]()]);
   } else {
