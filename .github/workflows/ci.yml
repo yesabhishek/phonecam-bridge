@@ -44,11 +44,13 @@ jobs:
         timeout-minutes: 12
         run: |
           sudo apt-get update
-          sudo -E apt-get install -y --no-install-recommends v4l2loopback-dkms "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)" v4l-utils \
+          sudo -E apt-get install -y --no-install-recommends v4l2loopback-dkms "linux-headers-$(uname -r)" v4l-utils \
             libavcodec-dev libswscale-dev libavutil-dev pkg-config ffmpeg
+          # Some runner kernels keep videodev in modules-extra; newer ones have no such package.
+          sudo -E apt-get install -y "linux-modules-extra-$(uname -r)" || echo "No linux-modules-extra for $(uname -r)"
       - name: Create the PhoneCam device (same options as "phonecam setup")
         run: |
-          sudo modprobe videodev
+          sudo modprobe videodev || true
           sudo modprobe v4l2loopback devices=1 video_nr=42 card_label="PhoneCam" exclusive_caps=1 max_buffers=2
           sudo chmod 666 /dev/video42
           v4l2-ctl -d /dev/video42 --info
